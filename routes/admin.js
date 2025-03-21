@@ -1,7 +1,16 @@
+// This file should only be used on the server side
 const express = require('express');
 const router = express.Router();
 const db = require('../config/sqliteConn');
 const bcrypt = require('bcrypt');
+
+// Admin middleware
+const checkAdmin = (req, res, next) => {
+    if (!req.session.user || req.session.user.role !== 'admin') {
+        return res.redirect('/login?error=You must be an admin to access this page');
+    }
+    next();
+};
 
 // Helper function to get timesheet data
 async function getTimesheetData() {
@@ -104,47 +113,37 @@ router.get('/timesheets', async (req, res) => {
     }
 });
 
-// Get users for admin dashboard
-router.get('/', function(req, res, next) {
-  req.checkAdmin(req, res, next);
-}, async (req, res) => {
+// Root admin route - make sure this exists
+router.get('/', checkAdmin, async (req, res) => {
     try {
-        // Get all users
-        const users = await db.all(`
-            SELECT id, username, name, role, active, email
-            FROM users
-            ORDER BY name
-        `);
+        // Fetch users for the user management section
+        const users = await db.all('SELECT id, username, name, role, active FROM users');
         
-        // Get timesheet data
+        // Mock timesheet data (replace with actual data fetch)
         const timesheets = await getTimesheetData();
         
-        // Render admin page with both datasets
-        res.render('admin', {
-            users: users || [], // Provide empty array fallback
-            timesheets: timesheets || [],
-            activePage: 'admin',
-            currentUser: req.session.user
+        res.render('admin', { 
+            title: 'Admin Dashboard',
+            users,
+            timesheets 
         });
     } catch (error) {
-        console.error('Error fetching admin data:', error);
-        // Render with empty datasets on error
-        res.render('admin', {
-            users: [],
-            timesheets: [],
-            activePage: 'admin',
-            currentUser: req.session.user,
-            error: 'Failed to load user data'
-        });
+        console.error('Error loading admin dashboard:', error);
+        res.status(500).send('Error loading admin dashboard');
     }
 });
 
 // Create new user API endpoint
-router.post('/api/users', function(req, res, next) {
-  req.checkAdmin(req, res, next);
-}, async (req, res) => {
+router.post('/api/users', checkAdmin, async (req, res) => {
     try {
         const { username, fullName, email, role, password } = req.body;
+        
+        // Validate required fields
+        if (!username || !fullName || !email || !role || !password) {
+            return res.status(400).json({ 
+                message: 'All fields are required: username, fullName, email, role, password' 
+            });
+        }
         
         // Check if username exists
         const existingUser = await db.get('SELECT username FROM users WHERE username = ?', [username]);
@@ -152,7 +151,7 @@ router.post('/api/users', function(req, res, next) {
             return res.status(400).json({ message: 'Username already exists' });
         }
         
-        // Hash password
+        // Hash password (add validation to ensure password is provided)
         const hashedPassword = await bcrypt.hash(password, 10);
         
         // Insert new user
@@ -172,9 +171,7 @@ router.post('/api/users', function(req, res, next) {
 });
 
 // Delete user API endpoint
-router.delete('/api/users/:id', function(req, res, next) {
-  req.checkAdmin(req, res, next);
-}, async (req, res) => {
+router.delete('/api/users/:id', checkAdmin, async (req, res) => {
     try {
         const { id } = req.params;
         

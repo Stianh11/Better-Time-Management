@@ -4,13 +4,22 @@ const express = require('express');
 const session = require('express-session');
 const db = require('./config/sqliteConn');
 const bodyParser = require('body-parser');
-const path = require('path');
+const path = require('path'); 
 const ejs = require('ejs');
 const expressLayouts = require('express-ejs-layouts');
+
+// Import routes - Move this up before defining any overlapping routes
+const adminRoutes = require('./routes/admin');// Initialize application
+const authRoutes = require('./routes/auth');
 
 // Initialize application
 const app = express();
 const PORT = process.env.PORT || 3001;
+
+// Parse JSON body
+app.use(express.json());
+// Parse URL-encoded form bodies
+app.use(express.urlencoded({ extended: true }));
 
 // ============================================================================
 // CONFIGURATION
@@ -18,7 +27,7 @@ const PORT = process.env.PORT || 3001;
 
 // View engine setup
 app.set('view engine', 'ejs');
-app.set('views', path.join(__dirname, 'view'));
+app.set('views', path.join(__dirname, 'views'));  // Use 'views' (plural)
 app.use(expressLayouts);
 app.set('layout', 'layout');
 
@@ -80,23 +89,6 @@ const formatMinutes = (minutes) => {
 // DATABASE MOCKS
 // ============================================================================
 
-// Mock users database (in a real app, you'd use a proper database)
-const users = [
-  { 
-    id: 1, 
-    username: 'admin', 
-    password: 'password123', // In a real app, this would be hashed
-    name: 'Administrator',
-    role: 'admin'
-  },
-  { 
-    id: 2, 
-    username: 'user', 
-    password: 'userpass', 
-    name: 'Regular User',
-    role: 'user'
-  }
-];
 
 // Mock data storage for time tracking
 const timeEntries = {
@@ -115,14 +107,14 @@ const timeEntries = {
 // Authentication middleware
 app.use((req, res, next) => {
   // Make authentication status available to all views
-  res.locals.isAuthenticated = req.session.isAuthenticated || false;
+  res.locals.isAuthenticated = !!req.session.user; // Changed from req.session.isAuthenticated
   res.locals.user = req.session.user || null;
   next();
 });
 
 // Middleware to check if user is logged in
 const checkAuth = (req, res, next) => {
-  if (!req.session.isAuthenticated) {
+  if (!req.session.user) { // Changed from req.session.isAuthenticated
     return res.redirect('/login?error=Please log in to access this page');
   }
   next();
@@ -139,55 +131,19 @@ const checkAdmin = (req, res, next) => {
   next();
 };
 
+// Make the middleware available to the routes
+app.use((req, res, next) => {
+  req.checkAdmin = checkAdmin;
+  req.checkAuth = checkAuth;
+  next();
+});
+
+// Use auth routes FIRST
+app.use('/', authRoutes);
+
 // ============================================================================
 // AUTHENTICATION ROUTES
 // ============================================================================
-
-// Show login page
-app.get('/login', (req, res) => {
-  // If already logged in, redirect to dashboard
-  if (req.session.isAuthenticated) {
-    return res.redirect('/dashboard');
-  }
-  
-  res.render('login', { 
-    activePage: 'login',
-    error: req.query.error
-  });
-});
-
-// Handle login form submission
-app.post('/login', (req, res) => {
-  const { username, password, remember } = req.body;
-  
-  // Find user in database
-  const user = users.find(u => u.username === username && u.password === password);
-  
-  // Check credentials
-  if (!user) {
-    return res.render('login', { 
-      error: 'Invalid username or password', 
-      activePage: 'login' 
-    });
-  }
-  
-  // Set session variables
-  req.session.isAuthenticated = true;
-  req.session.user = {
-    id: user.id,
-    username: user.username,
-    name: user.name,
-    role: user.role
-  };
-  
-  // If remember me checkbox is checked, extend session lifetime
-  if (remember) {
-    req.session.cookie.maxAge = 30 * 24 * 60 * 60 * 1000; // 30 days
-  }
-  
-  // Redirect to dashboard
-  res.redirect('/dashboard');
-});
 
 // Handle logout
 app.get('/logout', (req, res) => {
@@ -251,16 +207,6 @@ app.get('/leave-request', checkAuth, (req, res) => {
     userData, 
     activePage: 'leave-request' 
   });
-});
-
-// Import routes
-const adminRoutes = require('./routes/admin');
-
-// Make the middleware available to the admin routes
-app.use((req, res, next) => {
-  req.checkAdmin = checkAdmin;
-  req.checkAuth = checkAuth;
-  next();
 });
 
 // Use admin routes

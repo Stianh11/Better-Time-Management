@@ -257,5 +257,9 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 - Bootstrap team for the UI framework
 - Font Awesome for the icons
+<<<<<<< Updated upstream
+- Express.js team for the web framework
+>>>>>>> Stashed changes
+=======
 - Express.js team for the web framework
 >>>>>>> Stashed changes

@@ -1,3 +1,7 @@
+/**
+ * Admin Dashboard JavaScript
+ * Manages timesheet data, filtering, and pagination
+ */
 document.addEventListener('DOMContentLoaded', function() {
     // Initialize variables
     let timesheetData = [];
@@ -36,10 +40,16 @@ document.addEventListener('DOMContentLoaded', function() {
             const employeeName = row.cells[0].innerText;
             employeeNames.add(employeeName);
             
+            // Determine hours worked (handling 'On Leave' case)
+            let hoursWorked = 0;
+            if (!row.cells[2].innerText.includes('On Leave')) {
+                hoursWorked = parseFloat(row.cells[2].innerText);
+            }
+            
             return {
                 employeeName: employeeName,
                 date: new Date(row.cells[1].innerText),
-                hoursWorked: row.cells[2].innerText.includes('On Leave') ? 0 : parseFloat(row.cells[2].innerText),
+                hoursWorked: hoursWorked,
                 status: row.cells[3].innerText.toLowerCase(),
                 element: row
             };
@@ -71,7 +81,7 @@ document.addEventListener('DOMContentLoaded', function() {
             if (employee !== 'all' && item.employeeName !== employee) return false;
             
             // Filter by status
-            if (status !== 'all' && item.status.toLowerCase() !== status.toLowerCase()) return false;
+            if (status !== 'all' && !item.status.toLowerCase().includes(status.toLowerCase())) return false;
             
             // Filter by date range
             if (startDate && item.date < startDate) return false;
@@ -110,21 +120,34 @@ document.addEventListener('DOMContentLoaded', function() {
         currentPageSpan.textContent = `Page ${currentPage}`;
         prevPageBtn.disabled = currentPage === 1;
         nextPageBtn.disabled = end >= filteredData.length;
+        
+        // Update UI classes for pagination buttons
+        if (prevPageBtn.disabled) {
+            prevPageBtn.parentElement.classList.add('disabled');
+        } else {
+            prevPageBtn.parentElement.classList.remove('disabled');
+        }
+        
+        if (nextPageBtn.disabled) {
+            nextPageBtn.parentElement.classList.add('disabled');
+        } else {
+            nextPageBtn.parentElement.classList.remove('disabled');
+        }
     }
     
     // Update summary statistics
     function updateSummary() {
         // Count missing timesheets
         const missingCount = filteredData.filter(item => 
-            item.status.toLowerCase() === 'missing').length;
+            item.status.toLowerCase().includes('missing')).length;
         
         // Count unique employees
         const uniqueEmployees = new Set(filteredData.map(item => item.employeeName)).size;
         
-        // Calculate average hours (excluding leave)
+        // Calculate average hours (excluding leave and missing)
         const workEntries = filteredData.filter(item => 
-            item.status.toLowerCase() !== 'missing' && 
-            item.status.toLowerCase() !== 'leave');
+            !item.status.toLowerCase().includes('missing') && 
+            !item.status.toLowerCase().includes('leave'));
             
         let avgHours = 0;
         if (workEntries.length > 0) {
@@ -132,10 +155,33 @@ document.addEventListener('DOMContentLoaded', function() {
             avgHours = totalHours / workEntries.length;
         }
         
-        // Update the summary elements
-        missingCountElement.textContent = missingCount;
-        employeeCountElement.textContent = uniqueEmployees;
-        avgHoursElement.textContent = avgHours.toFixed(2);
+        // Update the summary elements with animations
+        animateCounter(missingCountElement, missingCount);
+        animateCounter(employeeCountElement, uniqueEmployees);
+        animateCounter(avgHoursElement, avgHours.toFixed(2));
+    }
+    
+    // Animate counter for better UX
+    function animateCounter(element, targetValue) {
+        const duration = 500; // ms
+        const startValue = parseFloat(element.textContent);
+        const startTime = performance.now();
+        
+        function updateCounter(currentTime) {
+            const elapsedTime = currentTime - startTime;
+            
+            if (elapsedTime < duration) {
+                const progress = elapsedTime / duration;
+                const currentValue = startValue + (targetValue - startValue) * progress;
+                element.textContent = typeof targetValue === 'number' && targetValue % 1 !== 0 ? 
+                    currentValue.toFixed(2) : Math.floor(currentValue);
+                requestAnimationFrame(updateCounter);
+            } else {
+                element.textContent = targetValue;
+            }
+        }
+        
+        requestAnimationFrame(updateCounter);
     }
     
     // Event listeners
@@ -158,17 +204,48 @@ document.addEventListener('DOMContentLoaded', function() {
     // Add action button handlers
     document.addEventListener('click', function(e) {
         // Send reminder button
-        if (e.target.classList.contains('remind-btn')) {
-            const employeeId = e.target.dataset.employee;
-            alert(`Reminder sent to employee ID: ${employeeId}`);
+        if (e.target.classList.contains('remind-btn') || e.target.parentElement.classList.contains('remind-btn')) {
+            const button = e.target.classList.contains('remind-btn') ? e.target : e.target.parentElement;
+            const employeeId = button.dataset.employee;
+            
+            // Show confirmation with feedback
+            button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending...';
+            button.disabled = true;
+            
+            // Simulate API call
+            setTimeout(() => {
+                button.innerHTML = '<i class="fas fa-check"></i> Sent';
+                button.classList.remove('btn-warning');
+                button.classList.add('btn-secondary');
+            }, 1500);
         }
         
         // Approve timesheet button
-        if (e.target.classList.contains('approve-btn')) {
-            const timesheetId = e.target.dataset.timesheetId;
-            alert(`Timesheet ${timesheetId} approved`);
-            e.target.disabled = true;
-            e.target.textContent = 'Approved';
+        if (e.target.classList.contains('approve-btn') || e.target.parentElement.classList.contains('approve-btn')) {
+            const button = e.target.classList.contains('approve-btn') ? e.target : e.target.parentElement;
+            const timesheetId = button.dataset.timesheetId;
+            
+            // Show approval in progress
+            button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Approving...';
+            button.disabled = true;
+            
+            // Simulate API call
+            setTimeout(() => {
+                button.innerHTML = '<i class="fas fa-check"></i> Approved';
+                button.classList.remove('btn-success');
+                button.classList.add('btn-secondary');
+                
+                // Update the status badge in the table
+                const row = button.closest('tr');
+                const statusCell = row.cells[3];
+                const statusBadge = statusCell.querySelector('.badge');
+                
+                if (statusBadge) {
+                    statusBadge.textContent = 'Approved';
+                    statusBadge.classList.remove('bg-success');
+                    statusBadge.classList.add('bg-secondary');
+                }
+            }, 1500);
         }
     });
     

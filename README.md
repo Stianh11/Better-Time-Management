@@ -1,7 +1,7 @@
 # Better-Time-Management
 It's just better   ¬‿¬
 
-# Time Management Application
+Time Management Application
 
 A comprehensive time management application built with Node.js and Express.js that helps employees track work hours, manage leaves, and improve productivity.
 

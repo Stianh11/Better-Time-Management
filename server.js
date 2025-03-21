@@ -253,93 +253,18 @@ app.get('/leave-request', checkAuth, (req, res) => {
   });
 });
 
-// Admin dashboard (protected, admin only)
-app.get('/admin', checkAuth, checkAdmin, (req, res) => {
-  // Get all employee timesheet data
-  // In a real app, this would come from a database query
-  
-  // Mock employees data
-  const employees = [
-    { id: 2, name: 'Regular User', username: 'user' },
-    { id: 3, name: 'Jane Smith', username: 'jsmith' },
-    { id: 4, name: 'John Doe', username: 'jdoe' }
-  ];
-  
-  // Get current date for calculations
-  const today = new Date();
-  const currentMonth = today.getMonth();
-  const currentYear = today.getFullYear();
-  
-  // Mock leave data
-  const leaveData = [
-    { employeeId: 2, startDate: new Date(currentYear, currentMonth, 5), 
-      endDate: new Date(currentYear, currentMonth, 7), status: 'approved' },
-    { employeeId: 3, startDate: new Date(currentYear, currentMonth, 15), 
-      endDate: new Date(currentYear, currentMonth, 16), status: 'approved' }
-  ];
-  
-  // Generate timesheet data for all employees
-  const allTimesheets = [];
-  
-  // Use the last 30 days for our sample data
-  for (let i = 0; i < 30; i++) {
-    const date = new Date(currentYear, currentMonth, today.getDate() - i);
-    // Skip weekends in our sample data
-    if (date.getDay() === 0 || date.getDay() === 6) continue;
-    
-    employees.forEach(employee => {
-      // Check if this date falls within any approved leave for this employee
-      const onLeave = leaveData.some(leave => 
-        employee.id === leave.employeeId && 
-        date >= leave.startDate && 
-        date <= leave.endDate &&
-        leave.status === 'approved'
-      );
-      
-      // Create a timesheet entry
-      // Randomly make some entries missing or incomplete
-      const random = Math.random();
-      
-      if (onLeave) {
-        // Employee is on approved leave
-        allTimesheets.push({
-          employeeId: employee.id,
-          employeeName: employee.name,
-          date: new Date(date),
-          hoursWorked: 0,
-          status: 'leave',
-          missing: false
-        });
-      } else if (random > 0.8) {
-        // Missing timesheet
-        allTimesheets.push({
-          employeeId: employee.id,
-          employeeName: employee.name,
-          date: new Date(date),
-          hoursWorked: 0,
-          status: 'missing',
-          missing: true
-        });
-      } else {
-        // Normal timesheet with random hours between 7 and 9
-        const hours = 7 + Math.random() * 2;
-        allTimesheets.push({
-          employeeId: employee.id,
-          employeeName: employee.name,
-          date: new Date(date),
-          hoursWorked: hours.toFixed(2),
-          status: 'submitted',
-          missing: false
-        });
-      }
-    });
-  }
-  
-  res.render('admin', { 
-    timesheets: allTimesheets,
-    activePage: 'admin'
-  });
+// Import routes
+const adminRoutes = require('./routes/admin');
+
+// Make the middleware available to the admin routes
+app.use((req, res, next) => {
+  req.checkAdmin = checkAdmin;
+  req.checkAuth = checkAuth;
+  next();
 });
+
+// Use admin routes
+app.use('/admin', adminRoutes);
 
 // ============================================================================
 // TIMESHEET ROUTES

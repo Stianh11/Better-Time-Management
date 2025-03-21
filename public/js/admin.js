@@ -1,254 +1,194 @@
-/**
- * Admin Dashboard JavaScript
- * Manages timesheet data, filtering, and pagination
- */
-document.addEventListener('DOMContentLoaded', function() {
-    // Initialize variables
-    let timesheetData = [];
-    let filteredData = [];
-    let currentPage = 1;
-    const rowsPerPage = 10;
-    
-    // DOM elements
-    const timesheetTable = document.getElementById('timesheetTable');
-    const employeeFilter = document.getElementById('employeeFilter');
-    const statusFilter = document.getElementById('statusFilter');
-    const startDateInput = document.getElementById('startDate');
-    const endDateInput = document.getElementById('endDate');
-    const applyFiltersBtn = document.getElementById('applyFilters');
-    const prevPageBtn = document.getElementById('prevPage');
-    const nextPageBtn = document.getElementById('nextPage');
-    const currentPageSpan = document.getElementById('currentPage');
-    const missingCountElement = document.getElementById('missingCount');
-    const employeeCountElement = document.getElementById('employeeCount');
-    const avgHoursElement = document.getElementById('avgHours');
-    
-    // Initialize date inputs with default values (last 30 days)
-    const today = new Date();
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(today.getDate() - 30);
-    
-    startDateInput.valueAsDate = thirtyDaysAgo;
-    endDateInput.valueAsDate = today;
-    
-    // Get initial data from the table
-    function collectTableData() {
-        const rows = Array.from(timesheetTable.querySelectorAll('tbody tr'));
-        const employeeNames = new Set();
+const express = require('express');
+const router = express.Router();
+const db = require('../config/sqliteConn');
+const bcrypt = require('bcrypt');
+
+// Helper function to get timesheet data
+async function getTimesheetData() {
+    try {
+        // Get current date for calculations
+        const today = new Date();
+        const currentMonth = today.getMonth();
+        const currentYear = today.getFullYear();
         
-        timesheetData = rows.map(row => {
-            const employeeName = row.cells[0].innerText;
-            employeeNames.add(employeeName);
+        // Get all employees
+        const employees = await db.all(`
+            SELECT id, name, username 
+            FROM users 
+            WHERE role = 'employee' AND active = 1
+        `);
+        
+        // Get approved leaves
+        const leaves = await db.all(`
+            SELECT employee_id as employeeId, start_date as start_date, end_date as end_date
+            FROM leaves
+            WHERE status = 'approved' 
+            AND end_date >= date('now', '-30 days')
+        `);
+        
+        // Get submitted timesheets
+        const submittedTimesheets = await db.all(`
+            SELECT employee_id as employeeId, date, hours_worked as hoursWorked
+            FROM timesheets
+            WHERE date >= date('now', '-30 days')
+        `);
+        
+        // Generate complete timesheet data for all employees
+        const allTimesheets = [];
+        
+        // Use the last 30 days
+        for (let i = 0; i < 30; i++) {
+            const date = new Date(currentYear, currentMonth, today.getDate() - i);
+            // Skip weekends in our dataset
+            if (date.getDay() === 0 || date.getDay() === 6) continue;
             
-            // Determine hours worked (handling 'On Leave' case)
-            let hoursWorked = 0;
-            if (!row.cells[2].innerText.includes('On Leave')) {
-                hoursWorked = parseFloat(row.cells[2].innerText);
-            }
-            
-            return {
-                employeeName: employeeName,
-                date: new Date(row.cells[1].innerText),
-                hoursWorked: hoursWorked,
-                status: row.cells[3].innerText.toLowerCase(),
-                element: row
-            };
-        });
-        
-        // Populate employee filter dropdown
-        employeeNames.forEach(name => {
-            const option = document.createElement('option');
-            option.value = name;
-            option.textContent = name;
-            employeeFilter.appendChild(option);
-        });
-        
-        // Initialize filtered data
-        filteredData = [...timesheetData];
-        updateSummary();
-        updateTable();
-    }
-    
-    // Apply filters to the data
-    function applyFilters() {
-        const employee = employeeFilter.value;
-        const status = statusFilter.value;
-        const startDate = startDateInput.valueAsDate;
-        const endDate = endDateInput.valueAsDate;
-        
-        filteredData = timesheetData.filter(item => {
-            // Filter by employee
-            if (employee !== 'all' && item.employeeName !== employee) return false;
-            
-            // Filter by status
-            if (status !== 'all' && !item.status.toLowerCase().includes(status.toLowerCase())) return false;
-            
-            // Filter by date range
-            if (startDate && item.date < startDate) return false;
-            if (endDate) {
-                const endDateLimit = new Date(endDate);
-                endDateLimit.setDate(endDate.getDate() + 1); // Include the end date
-                if (item.date >= endDateLimit) return false;
-            }
-            
-            return true;
-        });
-        
-        // Reset to first page and update display
-        currentPage = 1;
-        updateSummary();
-        updateTable();
-    }
-    
-    // Update the table with current filtered data
-    function updateTable() {
-        const start = (currentPage - 1) * rowsPerPage;
-        const end = start + rowsPerPage;
-        const pageData = filteredData.slice(start, end);
-        
-        // Hide all rows
-        timesheetData.forEach(item => {
-            item.element.style.display = 'none';
-        });
-        
-        // Show only the rows for current page
-        pageData.forEach(item => {
-            item.element.style.display = '';
-        });
-        
-        // Update pagination
-        currentPageSpan.textContent = `Page ${currentPage}`;
-        prevPageBtn.disabled = currentPage === 1;
-        nextPageBtn.disabled = end >= filteredData.length;
-        
-        // Update UI classes for pagination buttons
-        if (prevPageBtn.disabled) {
-            prevPageBtn.parentElement.classList.add('disabled');
-        } else {
-            prevPageBtn.parentElement.classList.remove('disabled');
-        }
-        
-        if (nextPageBtn.disabled) {
-            nextPageBtn.parentElement.classList.add('disabled');
-        } else {
-            nextPageBtn.parentElement.classList.remove('disabled');
-        }
-    }
-    
-    // Update summary statistics
-    function updateSummary() {
-        // Count missing timesheets
-        const missingCount = filteredData.filter(item => 
-            item.status.toLowerCase().includes('missing')).length;
-        
-        // Count unique employees
-        const uniqueEmployees = new Set(filteredData.map(item => item.employeeName)).size;
-        
-        // Calculate average hours (excluding leave and missing)
-        const workEntries = filteredData.filter(item => 
-            !item.status.toLowerCase().includes('missing') && 
-            !item.status.toLowerCase().includes('leave'));
-            
-        let avgHours = 0;
-        if (workEntries.length > 0) {
-            const totalHours = workEntries.reduce((sum, item) => sum + parseFloat(item.hoursWorked), 0);
-            avgHours = totalHours / workEntries.length;
-        }
-        
-        // Update the summary elements with animations
-        animateCounter(missingCountElement, missingCount);
-        animateCounter(employeeCountElement, uniqueEmployees);
-        animateCounter(avgHoursElement, avgHours.toFixed(2));
-    }
-    
-    // Animate counter for better UX
-    function animateCounter(element, targetValue) {
-        const duration = 500; // ms
-        const startValue = parseFloat(element.textContent);
-        const startTime = performance.now();
-        
-        function updateCounter(currentTime) {
-            const elapsedTime = currentTime - startTime;
-            
-            if (elapsedTime < duration) {
-                const progress = elapsedTime / duration;
-                const currentValue = startValue + (targetValue - startValue) * progress;
-                element.textContent = typeof targetValue === 'number' && targetValue % 1 !== 0 ? 
-                    currentValue.toFixed(2) : Math.floor(currentValue);
-                requestAnimationFrame(updateCounter);
-            } else {
-                element.textContent = targetValue;
-            }
-        }
-        
-        requestAnimationFrame(updateCounter);
-    }
-    
-    // Event listeners
-    applyFiltersBtn.addEventListener('click', applyFilters);
-    
-    prevPageBtn.addEventListener('click', function() {
-        if (currentPage > 1) {
-            currentPage--;
-            updateTable();
-        }
-    });
-    
-    nextPageBtn.addEventListener('click', function() {
-        if ((currentPage * rowsPerPage) < filteredData.length) {
-            currentPage++;
-            updateTable();
-        }
-    });
-    
-    // Add action button handlers
-    document.addEventListener('click', function(e) {
-        // Send reminder button
-        if (e.target.classList.contains('remind-btn') || e.target.parentElement.classList.contains('remind-btn')) {
-            const button = e.target.classList.contains('remind-btn') ? e.target : e.target.parentElement;
-            const employeeId = button.dataset.employee;
-            
-            // Show confirmation with feedback
-            button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending...';
-            button.disabled = true;
-            
-            // Simulate API call
-            setTimeout(() => {
-                button.innerHTML = '<i class="fas fa-check"></i> Sent';
-                button.classList.remove('btn-warning');
-                button.classList.add('btn-secondary');
-            }, 1500);
-        }
-        
-        // Approve timesheet button
-        if (e.target.classList.contains('approve-btn') || e.target.parentElement.classList.contains('approve-btn')) {
-            const button = e.target.classList.contains('approve-btn') ? e.target : e.target.parentElement;
-            const timesheetId = button.dataset.timesheetId;
-            
-            // Show approval in progress
-            button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Approving...';
-            button.disabled = true;
-            
-            // Simulate API call
-            setTimeout(() => {
-                button.innerHTML = '<i class="fas fa-check"></i> Approved';
-                button.classList.remove('btn-success');
-                button.classList.add('btn-secondary');
+            employees.forEach(employee => {
+                // Check if employee is on leave for this date
+                const onLeave = leaves.some(leave => {
+                    const startDate = new Date(leave.start_date);
+                    const endDate = new Date(leave.end_date);
+                    return leave.employeeId === employee.id && 
+                           date >= startDate && 
+                           date <= endDate;
+                });
                 
-                // Update the status badge in the table
-                const row = button.closest('tr');
-                const statusCell = row.cells[3];
-                const statusBadge = statusCell.querySelector('.badge');
+                // Check if employee has submitted a timesheet for this date
+                const submitted = submittedTimesheets.find(ts => 
+                    ts.employeeId === employee.id && 
+                    new Date(ts.date).toDateString() === date.toDateString()
+                );
                 
-                if (statusBadge) {
-                    statusBadge.textContent = 'Approved';
-                    statusBadge.classList.remove('bg-success');
-                    statusBadge.classList.add('bg-secondary');
+                let status, hoursWorked, missing;
+                
+                if (onLeave) {
+                    status = 'leave';
+                    hoursWorked = 0;
+                    missing = false;
+                } else if (submitted) {
+                    status = 'submitted';
+                    hoursWorked = submitted.hoursWorked;
+                    missing = false;
+                } else {
+                    status = 'missing';
+                    hoursWorked = 0;
+                    missing = true;
                 }
-            }, 1500);
+                
+                // Add timesheet entry
+                allTimesheets.push({
+                    employeeId: employee.id,
+                    employeeName: employee.name,
+                    date: date,
+                    hoursWorked: hoursWorked,
+                    status: status,
+                    missing: missing
+                });
+            });
         }
-    });
-    
-    // Initialize
-    collectTableData();
+        
+        return allTimesheets;
+    } catch (error) {
+        console.error('Error generating timesheet data:', error);
+        return [];
+    }
+}
+
+// API endpoint for timesheet data
+router.get('/timesheets', async (req, res) => {
+    try {
+        const timesheets = await getTimesheetData();
+        res.json(timesheets);
+    } catch (error) {
+        console.error('Error fetching timesheets:', error);
+        res.status(500).json({ message: 'Server error' });
+    }
 });
+
+// Get users for admin dashboard
+router.get('/', function(req, res, next) {
+  req.checkAdmin(req, res, next);
+}, async (req, res) => {
+    try {
+        // Get all users
+        const users = await db.all(`
+            SELECT id, username, name, role, active, email
+            FROM users
+            ORDER BY name
+        `);
+        
+        // Get timesheet data
+        const timesheets = await getTimesheetData();
+        
+        // Render admin page with both datasets
+        res.render('admin', {
+            users: users || [], // Provide empty array fallback
+            timesheets: timesheets || [],
+            activePage: 'admin',
+            currentUser: req.session.user
+        });
+    } catch (error) {
+        console.error('Error fetching admin data:', error);
+        // Render with empty datasets on error
+        res.render('admin', {
+            users: [],
+            timesheets: [],
+            activePage: 'admin',
+            currentUser: req.session.user,
+            error: 'Failed to load user data'
+        });
+    }
+});
+
+// Create new user API endpoint
+router.post('/api/users', function(req, res, next) {
+  req.checkAdmin(req, res, next);
+}, async (req, res) => {
+    try {
+        const { username, fullName, email, role, password } = req.body;
+        
+        // Check if username exists
+        const existingUser = await db.get('SELECT username FROM users WHERE username = ?', [username]);
+        if (existingUser) {
+            return res.status(400).json({ message: 'Username already exists' });
+        }
+        
+        // Hash password
+        const hashedPassword = await bcrypt.hash(password, 10);
+        
+        // Insert new user
+        const result = await db.run(`
+            INSERT INTO users (username, name, email, role, password, active)
+            VALUES (?, ?, ?, ?, ?, 1)
+        `, [username, fullName, email, role, hashedPassword]);
+        
+        res.status(201).json({
+            message: 'User created successfully',
+            userId: result.lastID
+        });
+    } catch (error) {
+        console.error('Error creating user:', error);
+        res.status(500).json({ message: 'Server error' });
+    }
+});
+
+// Delete user API endpoint
+router.delete('/api/users/:id', function(req, res, next) {
+  req.checkAdmin(req, res, next);
+}, async (req, res) => {
+    try {
+        const { id } = req.params;
+        
+        // Don't allow deleting your own account
+        if (req.session.user && req.session.user.id === parseInt(id)) {
+            return res.status(400).json({ message: 'Cannot delete your own account' });
+        }
+        
+        await db.run('DELETE FROM users WHERE id = ?', [id]);
+        res.json({ message: 'User deleted successfully' });
+    } catch (error) {
+        console.error('Error deleting user:', error);
+        res.status(500).json({ message: 'Server error' });
+    }
+});
+
+module.exports = router;

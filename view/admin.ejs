@@ -1,0 +1,106 @@
+view\admin.ejs -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin - Timesheets</title>
+    <link rel="stylesheet" href="/css/admin.css">
+</head>
+<body>
+    <%- include('partials/header') %>
+    <%- include('partials/navbar') %>
+
+    <div class="container">
+        <h1>All Employee Timesheets</h1>
+        
+        <div class="admin-controls">
+            <div class="filter-controls">
+                <label for="employeeFilter">Filter by Employee:</label>
+                <select id="employeeFilter">
+                    <option value="all">All Employees</option>
+                </select>
+                
+                <label for="statusFilter">Filter by Status:</label>
+                <select id="statusFilter">
+                    <option value="all">All Status</option>
+                    <option value="missing">Missing</option>
+                    <option value="submitted">Submitted</option>
+                    <option value="leave">On Leave</option>
+                </select>
+                
+                <label for="dateRange">Date Range:</label>
+                <input type="date" id="startDate">
+                <input type="date" id="endDate">
+                
+                <button id="applyFilters">Apply Filters</button>
+            </div>
+            
+            <div class="summary-container">
+                <div class="summary-box">
+                    <h3>Missing Timesheets</h3>
+                    <p id="missingCount">0</p>
+                </div>
+                <div class="summary-box">
+                    <h3>Total Employees</h3>
+                    <p id="employeeCount">0</p>
+                </div>
+                <div class="summary-box">
+                    <h3>Avg. Hours/Day</h3>
+                    <p id="avgHours">0</p>
+                </div>
+            </div>
+        </div>
+        
+        <table id="timesheetTable">
+            <thead>
+                <tr>
+                    <th>Employee Name</th>
+                    <th>Date</th>
+                    <th>Hours Worked</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                <% timesheets.forEach(timesheet => { %>
+                    <tr class="<%= timesheet.missing ? 'highlight' : '' %> status-<%= timesheet.status %>">
+                        <td><%= timesheet.employeeName %></td>
+                        <td><%= timesheet.date.toDateString() %></td>
+                        <td>
+                            <% if(timesheet.status === 'leave') { %>
+                                <span class="leave-badge">On Leave</span>
+                            <% } else { %>
+                                <%= timesheet.hoursWorked %>
+                            <% } %>
+                        </td>
+                        <td>
+                            <span class="status-badge <%= timesheet.status %>">
+                                <%= timesheet.status.charAt(0).toUpperCase() + timesheet.status.slice(1) %>
+                            </span>
+                        </td>
+                        <td>
+                            <% if(timesheet.missing) { %>
+                                <button class="btn remind-btn" data-employee="<%= timesheet.employeeId %>">Send Reminder</button>
+                            <% } else if(timesheet.status === 'submitted') { %>
+                                <button class="btn approve-btn" data-timesheet-id="<%= timesheet.employeeId %>_<%= timesheet.date.toISOString() %>">Approve</button>
+                            <% } else { %>
+                                <span>No action needed</span>
+                            <% } %>
+                        </td>
+                    </tr>
+                <% }) %>
+            </tbody>
+        </table>
+        
+        <div class="pagination">
+            <button id="prevPage">Previous</button>
+            <span id="currentPage">Page 1</span>
+            <button id="nextPage">Next</button>
+        </div>
+    </div>
+
+    <%- include('partials/footer') %>
+    <script src="/js/admin.js"></script>
+</body>
+</html>

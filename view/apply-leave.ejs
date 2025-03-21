@@ -1,0 +1,36 @@
+<div class="container">
+    <h1 class="text-center mb-2">Apply for Leave</h1>
+    
+    <div class="leave-stats">
+        <div class="leave-stat-card">
+            <h4>Total Leave Quota</h4>
+            <h3><%= leaveData.totalQuota %> days</h3>
+        </div>
+        
+        <div class="leave-stat-card">
+            <h4>Leaves Used</h4>
+            <h3><%= leaveData.usedLeaves %> days</h3>
+        </div>
+        
+        <div class="leave-stat-card">
+            <h4>Leaves Remaining</h4>
+            <h3 id="leaves-remaining"><%= leaveData.totalQuota - leaveData.usedLeaves %> days</h3>
+        </div>
+    </div>
+    
+    <div class="text-center mb-2">
+        <a href="/leave-request" id="apply-leave-btn" class="btn btn-primary">Apply for Leave</a>
+    </div>
+    
+    <div class="card">
+        <h2>Leave Policy</h2>
+        <p>Please review our leave policy before applying for a leave:</p>
+        <ul>
+            <li>Each employee is eligible for <%= leaveData.totalQuota %> days of paid leave per year.</li>
+            <li>Leave requests must be submitted at least 3 days in advance for approval.</li>
+            <li>Emergency leaves require appropriate documentation.</li>
+            <li>Unused leaves cannot be carried forward to the next year.</li>
+            <li>If you have used all available leaves, you can apply for unpaid leave with manager approval.</li>
+        </ul>
+    </div>
+</div>

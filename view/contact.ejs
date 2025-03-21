@@ -1,0 +1,115 @@
+<div class="container">
+    <h1 class="text-center mb-2">Contact Us</h1>
+    
+    <div class="faq-container card">
+        <h2 class="mb-2">Frequently Asked Questions</h2>
+        
+        <div class="faq-item">
+            <div class="faq-question">
+                <span>How do I log my work hours?</span>
+                <span class="indicator">+</span>
+            </div>
+            <div class="faq-answer">
+                <p>You can log your work hours by navigating to the Timesheet page after logging in. The system automatically records your login time, and you can manually log your breaks and logout time.</p>
+            </div>
+        </div>
+        
+        <div class="faq-item">
+            <div class="faq-question">
+                <span>How many leaves am I eligible for?</span>
+                <span class="indicator">+</span>
+            </div>
+            <div class="faq-answer">
+                <p>The leave quota depends on your employment type and duration. Typically, full-time employees are eligible for 25 days of paid leave per year. You can check your exact leave quota on the Apply Leave page.</p>
+            </div>
+        </div>
+        
+        <div class="faq-item">
+            <div class="faq-question">
+                <span>How do I apply for a leave?</span>
+                <span class="indicator">+</span>
+            </div>
+            <div class="faq-answer">
+                <p>To apply for a leave, go to the Apply Leave page, check your available leave balance, and click on the "Apply Leave" button. Fill in the required details in the form, including the leave reason and duration, and submit it for approval.</p>
+            </div>
+        </div>
+        
+        <div class="faq-item">
+            <div class="faq-question">
+                <span>Can I view my past timesheets?</span>
+                <span class="indicator">+</span>
+            </div>
+            <div class="faq-answer">
+                <p>Yes, you can view your past timesheets by going to the Timesheet page and using the period selector to choose weekly, monthly, or yearly views. This will display your timesheet data for the selected period.</p>
+            </div>
+        </div>
+        
+        <div class="faq-item">
+            <div class="faq-question">
+                <span>What should I do if I forgot to log my hours?</span>
+                <span class="indicator">+</span>
+            </div>
+            <div class="faq-answer">
+                <p>If you forgot to log your hours, please contact your manager or the HR department. They will help you update your timesheet with the correct information.</p>
+            </div>
+        </div>
+    </div>
+    
+    <div class="contact-options">
+        <div class="contact-option" data-type="form">
+            <h3>Other Questions</h3>
+            <p>Have a question that's not listed in the FAQ? Send us a message and we'll get back to you.</p>
+            <button class="btn btn-primary mt-2">Contact Form</button>
+        </div>
+        
+        <div class="contact-option" data-type="immediate">
+            <h3>Immediate Contact</h3>
+            <p>Need urgent assistance? Contact our support team directly.</p>
+            <button class="btn btn-primary mt-2">View Contact Details</button>
+        </div>
+    </div>
+    
+    <div class="contact-form" style="display: none;">
+        <h3 class="mb-2">Contact Form</h3>
+        <form>
+            <div class="form-group">
+                <label for="name">Name</label>
+                <input type="text" id="name" class="form-control" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="phone">Phone</label>
+                <input type="tel" id="phone" class="form-control" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="email">Email</label>
+                <input type="email" id="email" class="form-control" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="query">Your Query</label>
+                <textarea id="query" class="form-control" rows="5" required></textarea>
+            </div>
+            
+            <button type="submit" class="btn btn-primary">Submit</button>
+        </form>
+    </div>
+    
+    <div class="immediate-contact card" style="display: none;">
+        <h3 class="mb-2">Contact Information</h3>
+        
+        <% if (typeof isAuthenticated !== 'undefined' && isAuthenticated) { %>
+            <div>
+                <p><strong>Support Team:</strong> support@timemanager.com</p>
+                <p><strong>Phone:</strong> +1 (555) 123-4567</p>
+                <p><strong>Hours:</strong> Monday to Friday, 9:00 AM - 5:00 PM</p>
+            </div>
+        <% } else { %>
+            <div>
+                <p>You need to be logged in to view admin contact details.</p>
+                <a href="/" class="btn btn-primary mt-2">Login to Your Account</a>
+            </div>
+        <% } %>
+    </div>
+</div>

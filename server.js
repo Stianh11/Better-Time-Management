@@ -89,16 +89,13 @@ const formatMinutes = (minutes) => {
 // DATABASE MOCKS
 // ============================================================================
 
+// Replace the current timeEntries object with this user-based structure
+const userTimeEntries = {};
 
-// Mock data storage for time tracking
-const timeEntries = {
-  currentDay: null,
-  entries: [
-    { date: '2025-03-21', login: '08:30', logout: '17:30', pause: '01:00', unavailable: '00:00', totalAvailable: '08:00', status: 'complete' },
-    { date: '2025-03-20', login: '08:45', logout: '17:45', pause: '01:00', unavailable: '00:30', totalAvailable: '07:30', status: 'complete' }
-  ],
-  activeEntry: null
-};
+// Share userTimeEntries with the admin routes
+if (adminRoutes.setUserTimeEntries) {
+  adminRoutes.setUserTimeEntries(userTimeEntries);
+}
 
 // ============================================================================
 // MIDDLEWARE
@@ -122,7 +119,7 @@ const checkAuth = (req, res, next) => {
 
 // Admin authorization middleware
 const checkAdmin = (req, res, next) => {
-  if (!req.session.isAuthenticated || req.session.user.role !== 'admin') {
+  if (!req.session.user || req.session.user.role !== 'admin') {
     return res.status(403).render('error', { 
       message: 'Access denied. Admin privileges required.',
       activePage: 'error'
@@ -218,25 +215,36 @@ app.use('/admin', adminRoutes);
 
 // Dashboard route (protected)
 app.get('/dashboard', checkAuth, (req, res) => {
+  const userId = req.session.user.id || req.session.user.username;
   const now = new Date();
   
   // Get summary data for the dashboard
   let remainingHours = 0;
+  let userEntry = userTimeEntries[userId];
   
-  if (timeEntries.activeEntry) {
+  // If this is a new user, initialize their time entries
+  if (!userEntry) {
+    userEntry = userTimeEntries[userId] = {
+      currentDay: null,
+      entries: [],
+      activeEntry: null
+    };
+  }
+  
+  if (userEntry.activeEntry) {
     // Calculate remaining hours
-    const loginTime = timeEntries.activeEntry.login;
+    const loginTime = userEntry.activeEntry.login;
     const elapsedMinutes = calculateTimeDiff(loginTime, formatTime(now));
     
-    let pauseMinutes = calculateTimeDiff('00:00', timeEntries.activeEntry.pause);
-    let unavailableMinutes = calculateTimeDiff('00:00', timeEntries.activeEntry.unavailable);
+    let pauseMinutes = calculateTimeDiff('00:00', userEntry.activeEntry.pause);
+    let unavailableMinutes = calculateTimeDiff('00:00', userEntry.activeEntry.unavailable);
     
-    if (timeEntries.activeEntry.pauseStart) {
-      pauseMinutes += calculateTimeDiff(timeEntries.activeEntry.pauseStart, formatTime(now));
+    if (userEntry.activeEntry.pauseStart) {
+      pauseMinutes += calculateTimeDiff(userEntry.activeEntry.pauseStart, formatTime(now));
     }
     
-    if (timeEntries.activeEntry.unavailableStart) {
-      unavailableMinutes += calculateTimeDiff(timeEntries.activeEntry.unavailableStart, formatTime(now));
+    if (userEntry.activeEntry.unavailableStart) {
+      unavailableMinutes += calculateTimeDiff(userEntry.activeEntry.unavailableStart, formatTime(now));
     }
     
     const workedMinutes = elapsedMinutes - (pauseMinutes + unavailableMinutes);
@@ -245,9 +253,9 @@ app.get('/dashboard', checkAuth, (req, res) => {
   }
   
   const dashboardData = {
-    activeEntry: timeEntries.activeEntry,
+    activeEntry: userEntry.activeEntry,
     remainingHours: remainingHours.toFixed(1),
-    recentEntries: timeEntries.entries.slice(0, 3) // Latest 3 entries
+    recentEntries: userEntry.entries.slice(0, 3) // Latest 3 entries
   };
   
   res.render('dashboard', { 
@@ -258,30 +266,42 @@ app.get('/dashboard', checkAuth, (req, res) => {
 
 // Timesheet page (protected)
 app.get('/timesheet', checkAuth, (req, res) => {
+  const userId = req.session.user.id || req.session.user.username;
   const now = new Date();
   
   // Check for active entry and calculate remaining hours
   let loginTime = '---';
   let remainingHours = 0;
   
-  if (timeEntries.activeEntry) {
-    loginTime = timeEntries.activeEntry.login;
+  // Initialize user entry if it doesn't exist
+  if (!userTimeEntries[userId]) {
+    userTimeEntries[userId] = {
+      currentDay: null,
+      entries: [],
+      activeEntry: null
+    };
+  }
+  
+  const userEntry = userTimeEntries[userId];
+  
+  if (userEntry.activeEntry) {
+    loginTime = userEntry.activeEntry.login;
     
     // Calculate elapsed time in minutes
     const elapsedMinutes = calculateTimeDiff(loginTime, formatTime(now));
     
     // Calculate pause and unavailable time
-    let pauseMinutes = calculateTimeDiff('00:00', timeEntries.activeEntry.pause);
-    let unavailableMinutes = calculateTimeDiff('00:00', timeEntries.activeEntry.unavailable);
+    let pauseMinutes = calculateTimeDiff('00:00', userEntry.activeEntry.pause);
+    let unavailableMinutes = calculateTimeDiff('00:00', userEntry.activeEntry.unavailable);
     
     // Add current pause if on break
-    if (timeEntries.activeEntry.pauseStart) {
-      pauseMinutes += calculateTimeDiff(timeEntries.activeEntry.pauseStart, formatTime(now));
+    if (userEntry.activeEntry.pauseStart) {
+      pauseMinutes += calculateTimeDiff(userEntry.activeEntry.pauseStart, formatTime(now));
     }
     
     // Add current unavailable if unavailable
-    if (timeEntries.activeEntry.unavailableStart) {
-      unavailableMinutes += calculateTimeDiff(timeEntries.activeEntry.unavailableStart, formatTime(now));
+    if (userEntry.activeEntry.unavailableStart) {
+      unavailableMinutes += calculateTimeDiff(userEntry.activeEntry.unavailableStart, formatTime(now));
     }
     
     // Calculate worked time
@@ -295,8 +315,8 @@ app.get('/timesheet', checkAuth, (req, res) => {
   const timesheetData = {
     loginTime: loginTime,
     remainingHours: remainingHours,
-    timeEntries: timeEntries.entries,
-    activeEntry: timeEntries.activeEntry
+    timeEntries: userEntry.entries,
+    activeEntry: userEntry.activeEntry
   };
   
   res.render('timesheet', { 
@@ -311,19 +331,41 @@ app.get('/timesheet', checkAuth, (req, res) => {
 
 // Get timesheet status
 app.get('/api/timesheet-status', checkAuth, (req, res) => {
+  const userId = req.session.user.id || req.session.user.username;
+  
+  // Initialize user entry if it doesn't exist
+  if (!userTimeEntries[userId]) {
+    userTimeEntries[userId] = {
+      currentDay: null,
+      entries: [],
+      activeEntry: null
+    };
+  }
+  
   res.json({
-    activeEntry: timeEntries.activeEntry,
-    entries: timeEntries.entries.slice(0, 10) // Return last 10 entries
+    activeEntry: userTimeEntries[userId].activeEntry,
+    entries: userTimeEntries[userId].entries.slice(0, 10) // Return last 10 entries
   });
 });
 
 // Clock in route
 app.post('/api/clock-in', checkAuth, (req, res) => {
+  const userId = req.session.user.id || req.session.user.username;
+  
+  // Initialize user entry if it doesn't exist
+  if (!userTimeEntries[userId]) {
+    userTimeEntries[userId] = {
+      currentDay: null,
+      entries: [],
+      activeEntry: null
+    };
+  }
+
   const now = new Date();
   const today = now.toISOString().split('T')[0];
   
   // Check if already clocked in today
-  const existingEntry = timeEntries.entries.find(entry => entry.date === today);
+  const existingEntry = userTimeEntries[userId].entries.find(entry => entry.date === today);
   
   if (existingEntry && existingEntry.status !== 'complete') {
     return res.status(400).json({ error: 'Already clocked in today' });
@@ -343,141 +385,175 @@ app.post('/api/clock-in', checkAuth, (req, res) => {
     unavailableStart: null
   };
   
-  timeEntries.entries.unshift(newEntry);
-  timeEntries.activeEntry = newEntry;
-  timeEntries.currentDay = today;
+  userTimeEntries[userId].entries.unshift(newEntry);
+  userTimeEntries[userId].activeEntry = newEntry;
+  userTimeEntries[userId].currentDay = today;
   
   res.json({ success: true, entry: newEntry });
 });
 
 // Clock out route
 app.post('/api/clock-out', checkAuth, (req, res) => {
-  if (!timeEntries.activeEntry || timeEntries.activeEntry.status !== 'active') {
+  const userId = req.session.user.id || req.session.user.username;
+  
+  if (!userTimeEntries[userId] || 
+      !userTimeEntries[userId].activeEntry || 
+      userTimeEntries[userId].activeEntry.status !== 'active') {
     return res.status(400).json({ error: 'Not clocked in' });
   }
   
+  const userEntry = userTimeEntries[userId];
   const now = new Date();
   const currentTime = formatTime(now);
   
-  // If there's an active pause or unavailable period, end it
-  if (timeEntries.activeEntry.pauseStart) {
-    const pauseMinutes = calculateTimeDiff(timeEntries.activeEntry.pauseStart, currentTime);
-    const currentPauseMinutes = calculateTimeDiff('00:00', timeEntries.activeEntry.pause);
-    timeEntries.activeEntry.pause = formatMinutes(currentPauseMinutes + pauseMinutes);
-    timeEntries.activeEntry.pauseStart = null;
+  // Handle any active pauses or unavailable periods
+  if (userEntry.activeEntry.pauseStart) {
+    const pauseMinutes = calculateTimeDiff(userEntry.activeEntry.pauseStart, currentTime);
+    const currentPauseMinutes = calculateTimeDiff('00:00', userEntry.activeEntry.pause);
+    userEntry.activeEntry.pause = formatMinutes(currentPauseMinutes + pauseMinutes);
+    userEntry.activeEntry.pauseStart = null;
   }
   
-  if (timeEntries.activeEntry.unavailableStart) {
-    const unavailableMinutes = calculateTimeDiff(timeEntries.activeEntry.unavailableStart, currentTime);
-    const currentUnavailableMinutes = calculateTimeDiff('00:00', timeEntries.activeEntry.unavailable);
-    timeEntries.activeEntry.unavailable = formatMinutes(currentUnavailableMinutes + unavailableMinutes);
-    timeEntries.activeEntry.unavailableStart = null;
+  if (userEntry.activeEntry.unavailableStart) {
+    const unavailableMinutes = calculateTimeDiff(userEntry.activeEntry.unavailableStart, currentTime);
+    const currentUnavailableMinutes = calculateTimeDiff('00:00', userEntry.activeEntry.unavailable);
+    userEntry.activeEntry.unavailable = formatMinutes(currentUnavailableMinutes + unavailableMinutes);
+    userEntry.activeEntry.unavailableStart = null;
   }
   
   // Calculate total available time
-  const loginMinutes = calculateTimeDiff('00:00', timeEntries.activeEntry.login);
+  const loginMinutes = calculateTimeDiff('00:00', userEntry.activeEntry.login);
   const logoutMinutes = calculateTimeDiff('00:00', currentTime);
-  const pauseMinutes = calculateTimeDiff('00:00', timeEntries.activeEntry.pause);
-  const unavailableMinutes = calculateTimeDiff('00:00', timeEntries.activeEntry.unavailable);
+  const pauseMinutes = calculateTimeDiff('00:00', userEntry.activeEntry.pause);
+  const unavailableMinutes = calculateTimeDiff('00:00', userEntry.activeEntry.unavailable);
   
   const totalAvailableMinutes = (logoutMinutes - loginMinutes) - (pauseMinutes + unavailableMinutes);
   
-  timeEntries.activeEntry.logout = currentTime;
-  timeEntries.activeEntry.totalAvailable = formatMinutes(totalAvailableMinutes);
-  timeEntries.activeEntry.status = 'complete';
-  timeEntries.activeEntry = null;
+  userEntry.activeEntry.logout = currentTime;
+  userEntry.activeEntry.totalAvailable = formatMinutes(totalAvailableMinutes);
+  userEntry.activeEntry.status = 'complete';
+  userEntry.activeEntry = null;
   
   res.json({ success: true });
 });
 
 // Start break route
 app.post('/api/start-break', checkAuth, (req, res) => {
-  if (!timeEntries.activeEntry || timeEntries.activeEntry.status !== 'active') {
+  const userId = req.session.user.id || req.session.user.username;
+  
+  if (!userTimeEntries[userId] || 
+      !userTimeEntries[userId].activeEntry || 
+      userTimeEntries[userId].activeEntry.status !== 'active') {
     return res.status(400).json({ error: 'Not clocked in' });
   }
   
+  const userEntry = userTimeEntries[userId];
+  
   // If already on break
-  if (timeEntries.activeEntry.pauseStart) {
+  if (userEntry.activeEntry.pauseStart) {
     return res.status(400).json({ error: 'Already on break' });
   }
   
   // If unavailable, end that first
-  if (timeEntries.activeEntry.unavailableStart) {
+  if (userEntry.activeEntry.unavailableStart) {
     const now = new Date();
     const currentTime = formatTime(now);
     
-    const unavailableMinutes = calculateTimeDiff(timeEntries.activeEntry.unavailableStart, currentTime);
-    const currentUnavailableMinutes = calculateTimeDiff('00:00', timeEntries.activeEntry.unavailable);
-    timeEntries.activeEntry.unavailable = formatMinutes(currentUnavailableMinutes + unavailableMinutes);
-    timeEntries.activeEntry.unavailableStart = null;
+    const unavailableMinutes = calculateTimeDiff(userEntry.activeEntry.unavailableStart, currentTime);
+    const currentUnavailableMinutes = calculateTimeDiff('00:00', userEntry.activeEntry.unavailable);
+    userEntry.activeEntry.unavailable = formatMinutes(currentUnavailableMinutes + unavailableMinutes);
+    userEntry.activeEntry.unavailableStart = null;
   }
   
   const now = new Date();
-  timeEntries.activeEntry.pauseStart = formatTime(now);
+  userEntry.activeEntry.pauseStart = formatTime(now);
   
   res.json({ success: true });
 });
 
 // End break route
 app.post('/api/end-break', checkAuth, (req, res) => {
-  if (!timeEntries.activeEntry || !timeEntries.activeEntry.pauseStart) {
+  const userId = req.session.user.id || req.session.user.username;
+  
+  if (!userTimeEntries[userId] || 
+      !userTimeEntries[userId].activeEntry || 
+      !userTimeEntries[userId].activeEntry.pauseStart) {
     return res.status(400).json({ error: 'Not on break' });
   }
   
+  const userEntry = userTimeEntries[userId];
   const now = new Date();
   const currentTime = formatTime(now);
   
-  const pauseMinutes = calculateTimeDiff(timeEntries.activeEntry.pauseStart, currentTime);
-  const currentPauseMinutes = calculateTimeDiff('00:00', timeEntries.activeEntry.pause);
+  const pauseMinutes = calculateTimeDiff(userEntry.activeEntry.pauseStart, currentTime);
+  const currentPauseMinutes = calculateTimeDiff('00:00', userEntry.activeEntry.pause);
   
-  timeEntries.activeEntry.pause = formatMinutes(currentPauseMinutes + pauseMinutes);
-  timeEntries.activeEntry.pauseStart = null;
+  userEntry.activeEntry.pause = formatMinutes(currentPauseMinutes + pauseMinutes);
+  userEntry.activeEntry.pauseStart = null;
   
   res.json({ success: true });
 });
 
 // Start unavailable route
 app.post('/api/start-unavailable', checkAuth, (req, res) => {
-  if (!timeEntries.activeEntry || timeEntries.activeEntry.status !== 'active') {
+  const userId = req.session.user.id || req.session.user.username;
+  
+  // Initialize user entry if it doesn't exist
+  if (!userTimeEntries[userId]) {
+    userTimeEntries[userId] = {
+      currentDay: null,
+      entries: [],
+      activeEntry: null
+    };
+  }
+  
+  const userEntry = userTimeEntries[userId];
+  
+  if (!userEntry.activeEntry || userEntry.activeEntry.status !== 'active') {
     return res.status(400).json({ error: 'Not clocked in' });
   }
   
   // If already unavailable
-  if (timeEntries.activeEntry.unavailableStart) {
+  if (userEntry.activeEntry.unavailableStart) {
     return res.status(400).json({ error: 'Already unavailable' });
   }
   
   // If on break, end that first
-  if (timeEntries.activeEntry.pauseStart) {
+  if (userEntry.activeEntry.pauseStart) {
     const now = new Date();
     const currentTime = formatTime(now);
     
-    const pauseMinutes = calculateTimeDiff(timeEntries.activeEntry.pauseStart, currentTime);
-    const currentPauseMinutes = calculateTimeDiff('00:00', timeEntries.activeEntry.pause);
-    timeEntries.activeEntry.pause = formatMinutes(currentPauseMinutes + pauseMinutes);
-    timeEntries.activeEntry.pauseStart = null;
+    const pauseMinutes = calculateTimeDiff(userEntry.activeEntry.pauseStart, currentTime);
+    const currentPauseMinutes = calculateTimeDiff('00:00', userEntry.activeEntry.pause);
+    userEntry.activeEntry.pause = formatMinutes(currentPauseMinutes + pauseMinutes);
+    userEntry.activeEntry.pauseStart = null;
   }
   
   const now = new Date();
-  timeEntries.activeEntry.unavailableStart = formatTime(now);
+  userEntry.activeEntry.unavailableStart = formatTime(now);
   
   res.json({ success: true });
 });
 
 // End unavailable route
 app.post('/api/end-unavailable', checkAuth, (req, res) => {
-  if (!timeEntries.activeEntry || !timeEntries.activeEntry.unavailableStart) {
+  const userId = req.session.user.id || req.session.user.username;
+  
+  if (!userTimeEntries[userId] || 
+      !userTimeEntries[userId].activeEntry || 
+      !userTimeEntries[userId].activeEntry.unavailableStart) {
     return res.status(400).json({ error: 'Not unavailable' });
   }
   
+  const userEntry = userTimeEntries[userId];
   const now = new Date();
   const currentTime = formatTime(now);
   
-  const unavailableMinutes = calculateTimeDiff(timeEntries.activeEntry.unavailableStart, currentTime);
-  const currentUnavailableMinutes = calculateTimeDiff('00:00', timeEntries.activeEntry.unavailable);
+  const unavailableMinutes = calculateTimeDiff(userEntry.activeEntry.unavailableStart, currentTime);
+  const currentUnavailableMinutes = calculateTimeDiff('00:00', userEntry.activeEntry.unavailable);
   
-  timeEntries.activeEntry.unavailable = formatMinutes(currentUnavailableMinutes + unavailableMinutes);
-  timeEntries.activeEntry.unavailableStart = null;
+  userEntry.activeEntry.unavailable = formatMinutes(currentUnavailableMinutes + unavailableMinutes);
+  userEntry.activeEntry.unavailableStart = null;
   
   res.json({ success: true });
 });

@@ -311,3 +311,61 @@ body.dark-mode .summary-content p {
         width: 100%;
     }
 }
+
+/* Employee Activity Stats */
+.summary-box.present {
+    background-color: rgba(40, 167, 69, 0.1);
+    border-left: 4px solid #28a745;
+}
+
+.summary-box.on-break {
+    background-color: rgba(0, 123, 255, 0.1);
+    border-left: 4px solid #007bff;
+}
+
+.summary-box.absent {
+    background-color: rgba(220, 53, 69, 0.1);
+    border-left: 4px solid #dc3545;
+}
+
+.summary-box.on-leave {
+    background-color: rgba(23, 162, 184, 0.1);
+    border-left: 4px solid #17a2b8;
+}
+
+/* Status indicators */
+.status-indicator {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    margin-right: 8px;
+}
+
+.status-indicator.online {
+    background-color: #28a745;
+    box-shadow: 0 0 5px #28a745;
+}
+
+.status-indicator.offline {
+    background-color: #dc3545;
+    box-shadow: 0 0 5px #dc3545;
+}
+
+/* Employee activity table */
+#employeeActivityTable td {
+    vertical-align: middle;
+}
+
+#employeeSearchInput {
+    width: 200px;
+}
+
+/* Add some animation to the refresh button */
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+#refreshActivityBtn:active i {
+    animation: spin 1s linear;
+}

@@ -17,7 +17,7 @@
         </div>
         <% } %>
 
-        <form class="login-form" action="/login" method="POST">
+        <form class="login-form" action="/login<%= '?return=' + locals.return %>" method="POST">
             <div class="form-group">
                 <label for="username">
                     <i class="fas fa-user"></i> Username
@@ -55,6 +55,9 @@
                 <input type="checkbox" class="form-check-input" id="remember" name="remember">
                 <label class="form-check-label" for="remember">Remember me</label>
             </div>
+
+            <!-- Add this hidden input to pass the returnUrl to the POST handler -->
+            <input type="hidden" name="returnUrl" value="<%= typeof returnUrl !== 'undefined' ? returnUrl : '/dashboard' %>">
 
             <button type="submit" class="btn btn-primary btn-block">
                 <i class="fas fa-sign-in-alt"></i> Login

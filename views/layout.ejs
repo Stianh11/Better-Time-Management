@@ -11,6 +11,26 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        html, body {
+            height: 100%;
+            margin: 0;
+        }
+        
+        body {
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+        
+        main {
+            flex: 1 0 auto;
+        }
+        
+        footer {
+            flex-shrink: 0;
+        }
+    </style>
 </head>
 <body>
     <!-- Navigation Bar -->
@@ -117,7 +137,7 @@
                         <% } %>
                         <li><a href="/contact"><i class="fas fa-envelope"></i> Contact</a></li>
                         <li><a href="#"><i class="fas fa-info-circle"></i> About</a></li>
-                        <li><a href="#"><i class="fas fa-question-circle"></i> FAQ</a></li>
+                        <li><a href="/faq"><i class="fas fa-question-circle"></i> FAQ</a></li>
                     </ul>
                 </div>
                 

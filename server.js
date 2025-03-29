@@ -18,6 +18,7 @@ const authRoutes = require('./routes/auth');
 const employeeRoutes = require('./routes/employee'); 
 const timesheetRoutes = require('./routes/timesheet');
 const leaveRoutes = require('./routes/leave');
+const profileRoutes = require('./routes/profile'); // Add profile routes
 
 // Initialize application
 const app = express();
@@ -149,6 +150,7 @@ app.use('/api/auth', authRoutes); // For API authentication (JWT tokens)
 app.use('/api/employees', employeeRoutes);
 app.use('/api/timesheets', timesheetRoutes);
 app.use('/api/leaves', leaveRoutes); // Change from '/' to '/api/leaves'
+app.use('/api/profile', profileRoutes); // Add profile routes
 
 // Login and registration page routes only, not all auth routes
 app.get('/login', (req, res) => {
@@ -157,6 +159,32 @@ app.get('/login', (req, res) => {
 
 app.get('/register', (req, res) => {
   res.render('register', { activePage: 'register' });
+});
+
+// Profile page route
+app.get('/profile', checkAuth, async (req, res) => {
+  try {
+    const userId = req.session.user.id;
+    // Get full user data including profile image
+    const user = await db.get('SELECT * FROM users WHERE id = ?', [userId]);
+    
+    // Add profile data to session user object to make it available in the template
+    const sessionUser = {
+      ...req.session.user,
+      profile_image: user.profile_image
+    };
+    
+    res.render('profile', { 
+      activePage: 'profile', 
+      user: sessionUser
+    });
+  } catch (error) {
+    console.error('Error rendering profile page:', error);
+    res.status(500).render('error', { 
+      message: 'Error loading profile page', 
+      activePage: 'error' 
+    });
+  }
 });
 
 // Login form submission handler
